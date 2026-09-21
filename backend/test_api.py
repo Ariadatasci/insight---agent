@@ -1,11 +1,13 @@
 """Test the HTTP boundary without making provider requests."""
 
 import unittest
+import io
+import os
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from backend.main import app
+from backend.main import app, _log_handler
 
 
 class ApiTests(unittest.TestCase):
@@ -57,6 +59,31 @@ class ApiTests(unittest.TestCase):
             })
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers["access-control-allow-origin"], origin)
+
+    def test_exception_logs_traceback_without_secrets(self):
+        def fail(question):
+            try:
+                raise ValueError("Provider failed with synthetic-env-secret")
+            except ValueError as cause:
+                raise RuntimeError("GROQ_API_KEY=synthetic-inline-secret") from cause
+
+        output = io.StringIO()
+        with patch.dict(os.environ, {"TEST_SECRET": "synthetic-env-secret"}), \
+                patch.object(_log_handler, "stream", output), \
+                patch("backend.main.ask_agent", side_effect=fail):
+            response = self.client.post("/ask", json={"question": "A question?"})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {
+            "detail": "The agent could not complete your question. Please try again later.",
+        })
+        logged = output.getvalue()
+        self.assertIn("Traceback (most recent call last)", logged)
+        self.assertIn("ValueError", logged)
+        self.assertIn("RuntimeError", logged)
+        self.assertIn("[REDACTED]", logged)
+        self.assertNotIn("synthetic-env-secret", logged)
+        self.assertNotIn("synthetic-inline-secret", logged)
 
 
 if __name__ == "__main__":

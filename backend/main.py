@@ -1,10 +1,45 @@
 """A small HTTP API for the existing Insight Agent."""
 
+import logging
+import os
+import re
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from backend.agent import ask_agent
+
+
+class _RedactingFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        text = super().format(record)
+        # Redact after formatting so exception chains and traceback text are covered.
+        values = {
+            value for name, value in os.environ.items()
+            if len(value) >= 4 or re.search(
+                r"(?i)key|token|secret|password|credential", name
+            )
+        }
+        for value in sorted(values, key=len, reverse=True):
+            if value:
+                text = text.replace(value, "[REDACTED]")
+        text = re.sub(
+            r"(?im)(\b[\w-]*(?:api[_-]?key|token|secret|password|credential|authorization|cookie)"
+            r"[\w-]*[\"']?\s*[:=]\s*).*$",
+            r"\1[REDACTED]", text,
+        )
+        text = re.sub(r"(?i)\b(Bearer|Basic)\s+\S+", r"\1 [REDACTED]", text)
+        return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1[REDACTED]@", text)
+
+
+logger = logging.getLogger(__name__)
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(_RedactingFormatter("%(levelname)s %(name)s: %(message)s"))
+logger.addHandler(_log_handler)
+logger.setLevel(logging.ERROR)
+# Prevent ancestor handlers from emitting an unredacted copy of the exception.
+logger.propagate = False
 
 
 app = FastAPI(title="Insight Agent")
@@ -56,6 +91,7 @@ def ask(request: AskRequest) -> AskResponse:
             sources=result.get("sources", []),
         )
     except Exception:
+        logger.exception("Failed to process /ask request")
         # Never send exception text, configuration, or tool traces to the client.
         raise HTTPException(
             status_code=500,
