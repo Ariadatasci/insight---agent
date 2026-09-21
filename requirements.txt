@@ -1,0 +1,7 @@
+groq
+python-dotenv
+pypdf
+sentence-transformers
+faiss-cpu
+fastapi
+uvicorn

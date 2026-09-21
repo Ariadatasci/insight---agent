@@ -1,0 +1,27 @@
+# Local settings and secrets; keep safe setup templates.
+.env
+.env.*
+!.env.example
+
+# Python environments and generated files.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Downloaded models, portable Node, npm cache, and local test artifacts.
+.cache/
+backend/data/rag_index/
+
+# Frontend dependencies and production output.
+node_modules/
+dist/
+
+# Local logs and editor/OS leftovers.
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
