@@ -15,8 +15,10 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "https://insight-agent-seven.vercel.app",
     ],
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_origin_regex=r"^https://insight-agent-[a-z0-9]+(?:-[a-z0-9]+)*-aria-fab5\.vercel\.app$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
